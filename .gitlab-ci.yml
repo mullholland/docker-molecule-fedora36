@@ -1,0 +1,32 @@
+---
+# Use the buildx template
+# https://github.com/jdrouet/dockerfiles
+image: jdrouet/docker-with-buildx
+
+# Enable Docker-in-Docker
+variables:
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_DRIVER: overlay2
+
+services:
+  - docker:dind
+
+docker-test:
+  services:
+    - docker:dind
+  script:
+    # Test building image.
+    - docker build -t docker-test .
+    # Verify systemctl in the built image.
+    - docker run --name test-container --rm docker-test systemctl --version
+
+docker-build:
+  needs: ["docker-test"]
+  services:
+    - docker:dind
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - docker buildx create --use
+    - docker buildx build --push --platform linux/arm64,linux/amd64 --tag "$CI_REGISTRY_IMAGE${tag}" .
+  only:
+    - main
